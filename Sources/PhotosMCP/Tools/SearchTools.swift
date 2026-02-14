@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import Photos
+import CoreLocation
 
 enum SearchTools {
 
@@ -138,6 +139,53 @@ enum SearchTools {
             let slice = Array(assets.dropFirst(offset).prefix(limit))
             let json = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
             return .init(content: [.text(json)], isError: false)
+        }.value
+    }
+
+    /// Search photos by place name (city, country, etc.). Geocodes the name to coordinates, then finds photos nearby.
+    static func getPhotosByPlace(arguments: [String: Value]?) async throws -> CallTool.Result {
+        guard let placeName = String(arguments?["place"] ?? .string(""), strict: false), !placeName.isEmpty else {
+            return .init(content: [.text("Error: place name is required (e.g. 'Valencia', 'New York', 'Paris')")], isError: true)
+        }
+        let radiusKm = Double(arguments?["radius_km"] ?? 25, strict: false) ?? 25
+        let limit = min(Int(arguments?["limit"] ?? 50, strict: false) ?? 50, 200)
+        let offset = max(Int(arguments?["offset"] ?? 0, strict: false) ?? 0, 0)
+
+        let geocoder = CLGeocoder()
+        let placemarks: [CLPlacemark]
+        do {
+            placemarks = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[CLPlacemark], Error>) in
+                geocoder.geocodeAddressString(placeName) { marks, error in
+                    if let error = error { cont.resume(throwing: error); return }
+                    cont.resume(returning: marks ?? [])
+                }
+            }
+        } catch {
+            return .init(content: [.text("Error: Could not find '\(placeName)': \(error.localizedDescription)")], isError: true)
+        }
+        guard let loc = placemarks.first?.location else {
+            return .init(content: [.text("Error: No coordinates for '\(placeName)'")], isError: true)
+        }
+
+        let lat = loc.coordinate.latitude
+        let lon = loc.coordinate.longitude
+
+        return try await Task.detached(priority: .userInitiated) {
+            let allPhotos = PHAsset.fetchAssets(with: .image, options: nil)
+            var results: [PhotoKitHelpers.AssetMetadata] = []
+            allPhotos.enumerateObjects { asset, _, _ in
+                guard let assetLoc = asset.location else { return }
+                let distance = haversineKm(lat1: lat, lon1: lon, lat2: assetLoc.coordinate.latitude, lon2: assetLoc.coordinate.longitude)
+                if distance <= radiusKm {
+                    results.append(PhotoKitHelpers.metadata(from: asset))
+                }
+            }
+
+            let total = results.count
+            let slice = Array(results.dropFirst(offset).prefix(limit))
+            var response = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            response = "Place: \(placeName) (\(lat), \(lon)), radius \(radiusKm) km\n" + response
+            return .init(content: [.text(response)], isError: false)
         }.value
     }
 }

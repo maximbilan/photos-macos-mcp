@@ -66,6 +66,7 @@ The executable will be at:
 | `get_asset_details` | Full metadata for an asset |
 | `get_photo_thumbnail` | Base64 JPEG thumbnail |
 | `get_photo_full` | Full-resolution image as base64 JPEG |
+| `get_photos_by_place` | Photos by place name (e.g. Valencia, Paris)—geocodes and searches |
 | `get_photos_by_location` | Photos within a radius of lat/long |
 | `get_photos_by_date` | Photos on a date or in a range |
 | `list_moments` | Moments/collections (iOS only on macOS) |
@@ -107,7 +108,8 @@ PhotosMCP/
 ## Notes
 
 - `list_moments` returns an empty list on macOS; the `fetchMoments` API is iOS-only.
-- **Keyword search** in `search_photos` uses Apple's Vision framework for on-device image classification (e.g. "pizza", "food"). It analyzes up to 1000 photos—combine with `start_date`/`end_date` to narrow the set for large libraries.
+- **Keyword search** in `search_photos` uses Vision ML (pizza, food, car, city, dog, beach, etc.). Analyzes up to 1000 photos—combine with date range for large libraries.
+- **Place search** via `get_photos_by_place`—geocodes "Valencia", "Paris" etc. and finds photos taken there.
 - **Date search** accepts `yyyy-MM-dd` or full ISO 8601. Use `start_date` and `end_date` for ranges.
 
 ## License

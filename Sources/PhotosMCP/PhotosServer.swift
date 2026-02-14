@@ -61,6 +61,8 @@ actor PhotosServer {
             return try await ImageTools.getPhotoThumbnail(arguments: params.arguments)
         case "get_photo_full":
             return try await ImageTools.getPhotoFull(arguments: params.arguments)
+        case "get_photos_by_place":
+            return try await SearchTools.getPhotosByPlace(arguments: params.arguments)
         case "get_photos_by_location":
             return try await SearchTools.getPhotosByLocation(arguments: params.arguments)
         case "get_photos_by_date":

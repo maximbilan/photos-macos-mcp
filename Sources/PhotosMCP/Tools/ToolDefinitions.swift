@@ -53,7 +53,7 @@ enum ToolDefinitions {
                     "end_date": prop("string", description: "End of date range (ISO 8601)"),
                     "media_type": prop("string", description: "Filter by media type", enumValues: ["photo", "video", "live_photo", "any"]),
                     "is_favorite": prop("boolean", description: "Filter to favorites only"),
-                    "keyword": prop("string", description: "Filter by visual content (e.g. 'pizza', 'food'). Uses on-device Vision ML. Analyzes up to 1000 photos; combine with date range for large libraries."),
+                    "keyword": prop("string", description: "Filter by visual content (pizza, food, car, city, dog, beach, etc.). Uses Vision ML. Combine with date range for large libraries."),
                     "limit": prop("integer", description: "Maximum results (default 50, max 200)"),
                     "offset": prop("integer", description: "Offset for pagination (default 0)")
                 ]),
@@ -98,8 +98,19 @@ enum ToolDefinitions {
                 annotations: .init(readOnlyHint: true)
             ),
             Tool(
+                name: "get_photos_by_place",
+                description: "Find photos by place name (city, country). Geocodes the name and finds photos taken nearby. Use for 'photos from Valencia', 'pictures in Paris', etc.",
+                inputSchema: schema(properties: [
+                    "place": prop("string", description: "Place name (e.g. 'Valencia', 'New York', 'Paris, France')"),
+                    "radius_km": prop("number", description: "Search radius in km (default 25)"),
+                    "limit": prop("integer", description: "Maximum results (default 50, max 200)"),
+                    "offset": prop("integer", description: "Offset for pagination (default 0)")
+                ], required: ["place"]),
+                annotations: .init(readOnlyHint: true)
+            ),
+            Tool(
                 name: "get_photos_by_location",
-                description: "Find photos within a radius (km) of a given latitude and longitude.",
+                description: "Find photos within a radius (km) of given latitude and longitude coordinates.",
                 inputSchema: schema(properties: [
                     "latitude": prop("number", description: "Center latitude"),
                     "longitude": prop("number", description: "Center longitude"),

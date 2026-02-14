@@ -23,14 +23,16 @@ enum ContentClassifier {
     /// Keyword synonyms for common searches (Vision labels may vary).
     private static let keywordSynonyms: [String: [String]] = [
         "pizza": ["pizza", "pie", "Italian food", "food", "meal", "dough"],
-        "пицца": ["pizza", "pie", "Italian food", "food"],
         "food": ["food", "meal", "dish", "cuisine", "pizza", "sandwich", "salad"],
-        "їжа": ["food", "meal", "dish"],
         "dog": ["dog", "puppy", "canine"],
         "cat": ["cat", "kitten", "feline"],
         "beach": ["beach", "shore", "sand", "ocean", "sea"],
         "sunset": ["sunset", "sundown", "dusk", "sky"],
-        "landscape": ["landscape", "mountain", "nature", "scenery"]
+        "landscape": ["landscape", "mountain", "nature", "scenery"],
+        "car": ["car", "automobile", "vehicle", "sedan", "sports car", "truck"],
+        "city": ["city", "urban", "street", "downtown", "skyscraper", "building", "architecture"],
+        "person": ["person", "people", "human", "face", "portrait"],
+        "people": ["person", "people", "human", "face", "group"]
     ]
 
     /// Check if an asset's image matches the given keyword using Vision classification.
