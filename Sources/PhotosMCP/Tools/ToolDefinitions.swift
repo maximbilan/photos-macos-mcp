@@ -79,7 +79,7 @@ enum ToolDefinitions {
             ),
             Tool(
                 name: "get_photo_thumbnail",
-                description: "Return a JPEG thumbnail as base64-encoded string for MCP image content. Suitable for previews.",
+                description: "Small preview (default 512px). For full resolution use get_photo_full. Saves to temp file; tell user `open /path` to view.",
                 inputSchema: schema(properties: [
                     "asset_identifier": prop("string", description: "The asset's local identifier"),
                     "max_dimension": prop("integer", description: "Maximum width or height in pixels (default 512)"),
@@ -89,7 +89,7 @@ enum ToolDefinitions {
             ),
             Tool(
                 name: "get_photo_full",
-                description: "Return full-resolution image as base64 JPEG. Use max_dimension to downscale large images.",
+                description: "Full-resolution image (use this when user wants full size, not thumbnails). Saves to temp file; tell user `open /path` to view. Use max_dimension (e.g. 2048) to limit size.",
                 inputSchema: schema(properties: [
                     "asset_identifier": prop("string", description: "The asset's local identifier"),
                     "max_dimension": prop("integer", description: "Optional max width/height to downscale (avoids huge payloads)"),

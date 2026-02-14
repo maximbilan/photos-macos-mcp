@@ -23,15 +23,16 @@ enum ImageTools {
 
             do {
                 let imageData = try await ImageExport.thumbnail(asset: asset, maxDimension: maxDimension, quality: quality)
-                let dataUrl = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
-                let metadata: [String: String] = [
-                    "width": "\(min(asset.pixelWidth, maxDimension))",
-                    "height": "\(min(asset.pixelHeight, maxDimension))"
-                ]
-                return .init(
-                    content: [.image(data: dataUrl, mimeType: "image/jpeg", metadata: metadata)],
-                    isError: false
-                )
+                let (filePath, _) = saveToTempFile(imageData, prefix: "photo_thumb")
+                let w = min(asset.pixelWidth, maxDimension)
+                let h = min(asset.pixelHeight, maxDimension)
+                let msg: String
+                if let path = filePath {
+                    msg = "Thumbnail \(w)×\(h) saved. To view: `open \(path)`"
+                } else {
+                    msg = "Thumbnail \(w)×\(h) (save failed)"
+                }
+                return .init(content: [.text(msg)], isError: false)
             } catch {
                 return .init(
                     content: [.text("Error: Failed to export thumbnail: \(error.localizedDescription)")],
@@ -69,21 +70,16 @@ enum ImageTools {
                     maxDimension: maxDimension,
                     quality: quality
                 )
-                let dataUrl = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
                 let outW = maxDimension.map { min(asset.pixelWidth, $0) } ?? asset.pixelWidth
                 let outH = maxDimension.map { min(asset.pixelHeight, $0) } ?? asset.pixelHeight
-                let metadata: [String: String] = [
-                    "width": "\(outW)",
-                    "height": "\(outH)"
-                ]
-                var content: [Tool.Content] = [
-                    .text("Image size: \(imageData.count) bytes, dimensions: \(outW)x\(outH)"),
-                    .image(data: dataUrl, mimeType: "image/jpeg", metadata: metadata)
-                ]
-                if let w = warning {
-                    content.insert(.text(w), at: 0)
+                let (filePath, _) = saveToTempFile(imageData, prefix: "photo_full")
+                var parts: [String] = []
+                if let w = warning { parts.append(w) }
+                parts.append("Image \(outW)×\(outH), \(imageData.count) bytes.")
+                if let path = filePath {
+                    parts.append("To view: `open \(path)`")
                 }
-                return .init(content: content, isError: false)
+                return .init(content: [.text(parts.joined(separator: " "))], isError: false)
             } catch {
                 return .init(
                     content: [.text("Error: Failed to export image: \(error.localizedDescription)")],
@@ -91,5 +87,18 @@ enum ImageTools {
                 )
             }
         }.value
+    }
+}
+
+private func saveToTempFile(_ data: Data, prefix: String) -> (path: String?, displayPath: String?) {
+    let name = "\(prefix)_\(UUID().uuidString.prefix(8)).jpg"
+    let tmpDir = FileManager.default.temporaryDirectory
+    let fileURL = tmpDir.appendingPathComponent(name)
+    do {
+        try data.write(to: fileURL)
+        let path = fileURL.path
+        return (path, path)
+    } catch {
+        return (nil, nil)
     }
 }
