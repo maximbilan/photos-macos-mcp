@@ -13,16 +13,13 @@ enum SearchTools {
         let isFavorite = Bool(arguments?["is_favorite"] ?? .bool(false), strict: false)
         let keyword = String(arguments?["keyword"] ?? .string(""), strict: false) ?? ""
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
         var options = PHFetchOptions()
         var predicates: [NSPredicate] = []
 
-        if !startDateStr.isEmpty, let start = formatter.date(from: startDateStr) {
+        if !startDateStr.isEmpty, let start = DateParsing.parse(startDateStr) {
             predicates.append(NSPredicate(format: "creationDate >= %@", start as NSDate))
         }
-        if !endDateStr.isEmpty, let end = formatter.date(from: endDateStr) {
+        if !endDateStr.isEmpty, let end = DateParsing.parseEndOfDay(endDateStr) ?? DateParsing.parse(endDateStr) {
             predicates.append(NSPredicate(format: "creationDate <= %@", end as NSDate))
         }
         if let fav = isFavorite, fav {
@@ -47,20 +44,20 @@ enum SearchTools {
             }
 
             var assets: [PhotoKitHelpers.AssetMetadata] = []
+            var assetRefs: [PHAsset] = []
             let filterLivePhoto = (mediaTypeStr == "live_photo")
             fetchResult.enumerateObjects { asset, _, _ in
                 if filterLivePhoto && !asset.mediaSubtypes.contains(.photoLive) {
                     return
                 }
                 assets.append(PhotoKitHelpers.metadata(from: asset))
+                assetRefs.append(asset)
             }
 
-            // Keyword search via PHFetchOptions - PhotoKit doesn't have direct keyword search
-            // We could use PHCollection or search metadata, but for now we skip keyword
-            // if keyword is provided, we'd need to filter by asset resources or use ML – simplified here
             var filtered = assets
             if !keyword.isEmpty {
-                filtered = filtered.filter { _ in true } // Placeholder - keyword search limited in PhotoKit
+                let matchingIndices = await filterAssetsByKeyword(assetRefs: assetRefs, keyword: keyword)
+                filtered = matchingIndices.map { assets[$0] }
             }
 
             let total = filtered.count
@@ -104,23 +101,21 @@ enum SearchTools {
         let limit = min(Int(arguments?["limit"] ?? 50, strict: false) ?? 50, 200)
         let offset = max(Int(arguments?["offset"] ?? 0, strict: false) ?? 0, 0)
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
         var startDate: Date?
         var endDate: Date?
 
         if !dateStr.isEmpty {
-            if let d = formatter.date(from: dateStr) {
-                let cal = Calendar.current
+            if let d = DateParsing.parse(dateStr) {
+                var cal = Calendar(identifier: .gregorian)
+                cal.timeZone = TimeZone(identifier: "UTC")!
                 startDate = cal.startOfDay(for: d)
                 if let start = startDate {
                     endDate = cal.date(byAdding: .day, value: 1, to: start)?.addingTimeInterval(-0.001)
                 }
             }
         } else {
-            if !startDateStr.isEmpty { startDate = formatter.date(from: startDateStr) }
-            if !endDateStr.isEmpty { endDate = formatter.date(from: endDateStr) }
+            if !startDateStr.isEmpty { startDate = DateParsing.parse(startDateStr) }
+            if !endDateStr.isEmpty { endDate = DateParsing.parseEndOfDay(endDateStr) ?? DateParsing.parse(endDateStr) }
         }
 
         var predicates: [NSPredicate] = []
@@ -145,6 +140,16 @@ enum SearchTools {
             return .init(content: [.text(json)], isError: false)
         }.value
     }
+}
+
+private func filterAssetsByKeyword(assetRefs: [PHAsset], keyword: String) async -> [Int] {
+    let maxAnalyze = min(assetRefs.count, ContentClassifier.maxAssetsToAnalyze)
+    var matching: [Int] = []
+    for i in 0..<maxAnalyze {
+        let matches = await ContentClassifier.assetMatchesKeyword(asset: assetRefs[i], keyword: keyword)
+        if matches { matching.append(i) }
+    }
+    return matching
 }
 
 private struct SearchResponse: Encodable {

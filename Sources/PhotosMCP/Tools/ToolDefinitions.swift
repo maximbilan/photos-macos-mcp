@@ -53,7 +53,7 @@ enum ToolDefinitions {
                     "end_date": prop("string", description: "End of date range (ISO 8601)"),
                     "media_type": prop("string", description: "Filter by media type", enumValues: ["photo", "video", "live_photo", "any"]),
                     "is_favorite": prop("boolean", description: "Filter to favorites only"),
-                    "keyword": prop("string", description: "Search for photos containing this keyword"),
+                    "keyword": prop("string", description: "Filter by visual content (e.g. 'pizza', 'food'). Uses on-device Vision ML. Analyzes up to 1000 photos; combine with date range for large libraries."),
                     "limit": prop("integer", description: "Maximum results (default 50, max 200)"),
                     "offset": prop("integer", description: "Offset for pagination (default 0)")
                 ]),

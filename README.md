@@ -107,7 +107,8 @@ PhotosMCP/
 ## Notes
 
 - `list_moments` returns an empty list on macOS; the `fetchMoments` API is iOS-only.
-- Keyword search in `search_photos` is limited—PhotoKit does not expose full-text search for asset metadata.
+- **Keyword search** in `search_photos` uses Apple's Vision framework for on-device image classification (e.g. "pizza", "food"). It analyzes up to 1000 photos—combine with `start_date`/`end_date` to narrow the set for large libraries.
+- **Date search** accepts `yyyy-MM-dd` or full ISO 8601. Use `start_date` and `end_date` for ranges.
 
 ## License
 
