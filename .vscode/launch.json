@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:photos-macos-mcp}",
+            "name": "Debug PhotosMCP",
+            "target": "PhotosMCP",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug PhotosMCP"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:photos-macos-mcp}",
+            "name": "Release PhotosMCP",
+            "target": "PhotosMCP",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release PhotosMCP"
+        }
+    ]
+}
