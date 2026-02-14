@@ -1,0 +1,114 @@
+# PhotosMCP
+
+A **Model Context Protocol (MCP) server** in Swift that provides AI assistants with read-only access to the macOS Photos library via Apple's PhotoKit framework.
+
+## Requirements
+
+- macOS 13.0+
+- Swift 6.0+ (Xcode 16+)
+- Photos app with a library
+
+## Building
+
+```bash
+swift build -c release
+```
+
+The executable will be at:
+
+```
+.build/release/PhotosMCP
+```
+
+## Claude Desktop App Integration
+
+1. **Build the project** (see above).
+
+2. **Add to Claude Desktop config**
+
+   Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "photos": {
+         "command": "/Users/YOUR_USERNAME/Developer/photos-macos-mcp/.build/release/PhotosMCP",
+         "args": []
+       }
+     }
+   }
+   ```
+
+   Replace `YOUR_USERNAME` (or the whole path) with the actual absolute path to your built binary, for example:
+
+```json
+"command": "/Users/max/Developer/photos-macos-mcp/.build/release/PhotosMCP"
+```
+
+3. **Grant Photos access**
+
+   The PhotosMCP process (or the parent Claude app) needs access to your Photos library. If prompted, allow it in:
+
+   **System Settings → Privacy & Security → Photos**
+
+   If the server was spawned by the Claude desktop app, you may need to grant Photos access to the Claude app.
+
+4. **Restart Claude** so it picks up the new MCP server.
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_albums` | List all user and smart albums (name, id, asset count, type) |
+| `get_library_stats` | Total photos, videos, albums, and date range |
+| `search_photos` | Search by date range, media type, favorites, keyword |
+| `get_album_contents` | Assets in an album by identifier |
+| `get_asset_details` | Full metadata for an asset |
+| `get_photo_thumbnail` | Base64 JPEG thumbnail |
+| `get_photo_full` | Full-resolution image as base64 JPEG |
+| `get_photos_by_location` | Photos within a radius of lat/long |
+| `get_photos_by_date` | Photos on a date or in a range |
+| `list_moments` | Moments/collections (iOS only on macOS) |
+
+All list/search tools support `limit` (default 50, max 200) and `offset` for pagination.
+
+## Permissions
+
+The server uses `PHPhotoLibrary.requestAuthorization` and will show a system dialog on first use. If access is denied, tools return clear error messages.
+
+## Read-Only
+
+This server is read-only. It does not modify, delete, or create assets or albums.
+
+## Project Structure
+
+```
+PhotosMCP/
+├── Package.swift
+├── Info.plist              # NSPhotoLibraryUsageDescription for Photos access
+├── Sources/
+│   └── PhotosMCP/
+│       ├── main.swift              # Entry point, stdio transport
+│       ├── PhotosServer.swift      # MCP server, tool registration
+│       ├── Tools/
+│       │   ├── ToolDefinitions.swift  # Tool schemas
+│       │   ├── LibraryTools.swift    # list_albums, get_library_stats, list_moments
+│       │   ├── SearchTools.swift     # search_photos, get_photos_by_location, get_photos_by_date
+│       │   ├── AlbumTools.swift      # get_album_contents
+│       │   ├── AssetTools.swift      # get_asset_details
+│       │   └── ImageTools.swift      # get_photo_thumbnail, get_photo_full
+│       └── Helpers/
+│           ├── PhotoKitHelpers.swift  # PHAsset → JSON structs
+│           ├── ImageExport.swift      # PHImageManager, base64 JPEG
+│           └── PhotosAccess.swift    # Library authorization
+└── README.md
+```
+
+## Notes
+
+- `list_moments` returns an empty list on macOS; the `fetchMoments` API is iOS-only.
+- Keyword search in `search_photos` is limited—PhotoKit does not expose full-text search for asset metadata.
+
+## License
+
+MIT
