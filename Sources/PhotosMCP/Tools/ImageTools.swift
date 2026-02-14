@@ -23,13 +23,13 @@ enum ImageTools {
 
             do {
                 let imageData = try await ImageExport.thumbnail(asset: asset, maxDimension: maxDimension, quality: quality)
-                let base64 = imageData.base64EncodedString()
+                let dataUrl = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
                 let metadata: [String: String] = [
                     "width": "\(min(asset.pixelWidth, maxDimension))",
                     "height": "\(min(asset.pixelHeight, maxDimension))"
                 ]
                 return .init(
-                    content: [.image(data: base64, mimeType: "image/jpeg", metadata: metadata)],
+                    content: [.image(data: dataUrl, mimeType: "image/jpeg", metadata: metadata)],
                     isError: false
                 )
             } catch {
@@ -69,7 +69,7 @@ enum ImageTools {
                     maxDimension: maxDimension,
                     quality: quality
                 )
-                let base64 = imageData.base64EncodedString()
+                let dataUrl = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
                 let outW = maxDimension.map { min(asset.pixelWidth, $0) } ?? asset.pixelWidth
                 let outH = maxDimension.map { min(asset.pixelHeight, $0) } ?? asset.pixelHeight
                 let metadata: [String: String] = [
@@ -78,7 +78,7 @@ enum ImageTools {
                 ]
                 var content: [Tool.Content] = [
                     .text("Image size: \(imageData.count) bytes, dimensions: \(outW)x\(outH)"),
-                    .image(data: base64, mimeType: "image/jpeg", metadata: metadata)
+                    .image(data: dataUrl, mimeType: "image/jpeg", metadata: metadata)
                 ]
                 if let w = warning {
                     content.insert(.text(w), at: 0)
