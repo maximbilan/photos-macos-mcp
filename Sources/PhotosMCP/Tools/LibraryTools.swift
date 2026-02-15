@@ -74,8 +74,16 @@ enum LibraryTools {
                 default: break
                 }
                 if let d = asset.creationDate {
-                    if earliest == nil || d < earliest! { earliest = d }
-                    if latest == nil || d > latest! { latest = d }
+                    if let e = earliest {
+                        if d < e { earliest = d }
+                    } else {
+                        earliest = d
+                    }
+                    if let l = latest {
+                        if d > l { latest = d }
+                    } else {
+                        latest = d
+                    }
                 }
             }
 

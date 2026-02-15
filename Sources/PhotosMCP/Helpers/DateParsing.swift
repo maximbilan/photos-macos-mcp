@@ -11,8 +11,12 @@ enum DateParsing {
         guard !s.isEmpty else { return nil }
 
         let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds, .withTimeZone]
         iso.timeZone = TimeZone(identifier: "UTC")
+        if let d = iso.date(from: s) { return d }
+
+        // Try without fractional seconds (e.g. "2024-01-15T14:30:00Z")
+        iso.formatOptions = [.withInternetDateTime, .withTimeZone]
         if let d = iso.date(from: s) { return d }
 
         let dateOnly = DateFormatter()
@@ -26,7 +30,7 @@ enum DateParsing {
     static func parseEndOfDay(_ string: String) -> Date? {
         guard let d = parse(string) else { return nil }
         var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
+        cal.timeZone = TimeZone(identifier: "UTC") ?? .current
         return cal.date(bySettingHour: 23, minute: 59, second: 59, of: d)?
             .addingTimeInterval(0.999)
     }

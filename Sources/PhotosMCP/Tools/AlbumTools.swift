@@ -25,15 +25,8 @@ enum AlbumTools {
 
             let total = assets.count
             let slice = Array(assets.dropFirst(offset).prefix(limit))
-            let json = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            let json = try PhotoKitHelpers.encodeToJSON(PhotoKitHelpers.SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
             return .init(content: [.text(json)], isError: false)
         }.value
     }
-}
-
-private struct SearchResponse: Encodable {
-    let assets: [PhotoKitHelpers.AssetMetadata]
-    let total: Int
-    let limit: Int
-    let offset: Int
 }

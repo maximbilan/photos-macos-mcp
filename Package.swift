@@ -24,6 +24,10 @@ let package = Package(
                 .enableUpcomingFeature("StrictConcurrency"),
                 .unsafeFlags(["-parse-as-library"])
             ]
+        ),
+        .testTarget(
+            name: "PhotosMCPTests",
+            dependencies: ["PhotosMCP"]
         )
     ]
 )

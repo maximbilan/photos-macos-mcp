@@ -11,14 +11,14 @@ enum ImageTools {
         let maxDimension = Int(arguments?["max_dimension"] ?? 512, strict: false) ?? 512
         let quality = CGFloat(Double(arguments?["quality"] ?? 0.8, strict: false) ?? 0.8)
 
-        return try await Task.detached(priority: .userInitiated) {
+        return await Task.detached(priority: .userInitiated) {
             let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
             guard let asset = fetchResult.firstObject else {
-                return .init(content: [.text("Error: Asset not found with identifier \(assetId)")], isError: true)
+                return CallTool.Result(content: [.text("Error: Asset not found with identifier \(assetId)")], isError: true)
             }
 
             guard asset.mediaType == .image else {
-                return .init(content: [.text("Error: Asset is not a photo (media type: \(asset.mediaType.rawValue))")], isError: true)
+                return CallTool.Result(content: [.text("Error: Asset is not a photo (media type: \(asset.mediaType.rawValue))")], isError: true)
             }
 
             do {
@@ -32,9 +32,9 @@ enum ImageTools {
                 } else {
                     msg = "Thumbnail \(w)×\(h) (save failed)"
                 }
-                return .init(content: [.text(msg)], isError: false)
+                return CallTool.Result(content: [.text(msg)], isError: false)
             } catch {
-                return .init(
+                return CallTool.Result(
                     content: [.text("Error: Failed to export thumbnail: \(error.localizedDescription)")],
                     isError: true
                 )
@@ -49,14 +49,14 @@ enum ImageTools {
         let maxDimension = arguments?["max_dimension"].flatMap { Int($0, strict: false) }
         let quality = CGFloat(Double(arguments?["quality"] ?? 0.8, strict: false) ?? 0.8)
 
-        return try await Task.detached(priority: .userInitiated) {
+        return await Task.detached(priority: .userInitiated) {
             let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
             guard let asset = fetchResult.firstObject else {
-                return .init(content: [.text("Error: Asset not found with identifier \(assetId)")], isError: true)
+                return CallTool.Result(content: [.text("Error: Asset not found with identifier \(assetId)")], isError: true)
             }
 
             guard asset.mediaType == .image else {
-                return .init(content: [.text("Error: Asset is not a photo (media type: \(asset.mediaType.rawValue))")], isError: true)
+                return CallTool.Result(content: [.text("Error: Asset is not a photo (media type: \(asset.mediaType.rawValue))")], isError: true)
             }
 
             var warning: String?
@@ -79,9 +79,9 @@ enum ImageTools {
                 if let path = filePath {
                     parts.append("To view: `open \(path)`")
                 }
-                return .init(content: [.text(parts.joined(separator: " "))], isError: false)
+                return CallTool.Result(content: [.text(parts.joined(separator: " "))], isError: false)
             } catch {
-                return .init(
+                return CallTool.Result(
                     content: [.text("Error: Failed to export image: \(error.localizedDescription)")],
                     isError: true
                 )
@@ -90,15 +90,42 @@ enum ImageTools {
     }
 }
 
+private let tempFilesSubdirName = "PhotosMCP"
+
 private func saveToTempFile(_ data: Data, prefix: String) -> (path: String?, displayPath: String?) {
+    let fm = FileManager.default
+    let tmpDir = fm.temporaryDirectory.appendingPathComponent(tempFilesSubdirName, isDirectory: true)
+    let baseDir: URL
+    if (try? fm.createDirectory(at: tmpDir, withIntermediateDirectories: true)) != nil {
+        baseDir = tmpDir
+        TempFileCleanup.cleanStaleFiles(in: tmpDir)
+    } else {
+        baseDir = fm.temporaryDirectory
+    }
+
     let name = "\(prefix)_\(UUID().uuidString.prefix(8)).jpg"
-    let tmpDir = FileManager.default.temporaryDirectory
-    let fileURL = tmpDir.appendingPathComponent(name)
+    let fileURL = baseDir.appendingPathComponent(name)
     do {
         try data.write(to: fileURL)
-        let path = fileURL.path
-        return (path, path)
+        return (fileURL.path, fileURL.path)
     } catch {
         return (nil, nil)
+    }
+}
+
+/// Cleans exported image temp files older than 1 hour to limit disk use and exposure window.
+enum TempFileCleanup {
+    private static let maxAgeSeconds: TimeInterval = 3600  // 1 hour
+
+    static func cleanStaleFiles(in directory: URL) {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey]) else { return }
+        let cutoff = Date().addingTimeInterval(-maxAgeSeconds)
+        for url in contents where url.pathExtension == "jpg" {
+            guard let attrs = try? fm.attributesOfItem(atPath: url.path),
+                  let creation = attrs[.creationDate] as? Date,
+                  creation < cutoff else { continue }
+            try? fm.removeItem(at: url)
+        }
     }
 }

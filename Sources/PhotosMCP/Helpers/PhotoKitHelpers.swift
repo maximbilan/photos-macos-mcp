@@ -129,6 +129,15 @@ enum PhotoKitHelpers {
         )
     }
 
+    // MARK: - Search Response (shared by SearchTools, AlbumTools)
+
+    struct SearchResponse: Encodable {
+        let assets: [AssetMetadata]
+        let total: Int
+        let limit: Int
+        let offset: Int
+    }
+
     // MARK: - Encoding Helpers
 
     static func encodeToJSON<T: Encodable>(_ value: T) throws -> String {

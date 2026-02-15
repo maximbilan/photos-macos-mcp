@@ -81,6 +81,11 @@ The server uses `PHPhotoLibrary.requestAuthorization` and will show a system dia
 
 This server is read-only. It does not modify, delete, or create assets or albums.
 
+## Privacy & Data
+
+- **Place search** (`get_photos_by_place`): Place names you provide (e.g. "Valencia", "Paris") are sent to Apple's geocoding service to resolve coordinates. This may involve network requests.
+- **Image export**: Thumbnails and full images are written to a `PhotosMCP` subdirectory in the system temp folder. Files older than 1 hour are automatically deleted when new exports occur.
+
 ## Project Structure
 
 ```
@@ -101,7 +106,10 @@ PhotosMCP/
 │       └── Helpers/
 │           ├── PhotoKitHelpers.swift  # PHAsset → JSON structs
 │           ├── ImageExport.swift      # PHImageManager, base64 JPEG
-│           └── PhotosAccess.swift    # Library authorization
+│           ├── PhotosAccess.swift     # Library authorization
+│           ├── DateParsing.swift      # ISO 8601 date parsing
+│           ├── GeoUtils.swift         # Haversine distance for location search
+│           └── ContentClassifier.swift # Vision ML keyword matching
 └── README.md
 ```
 

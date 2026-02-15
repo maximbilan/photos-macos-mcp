@@ -1,7 +1,6 @@
 import Foundation
 import MCP
 import Photos
-import ImageIO
 
 enum AssetTools {
 
@@ -18,9 +17,8 @@ enum AssetTools {
 
             let meta = PhotoKitHelpers.metadata(from: asset)
 
-            // Get resource file sizes if available
-            let resources = PHAssetResource.assetResources(for: asset)
-            let sizes = resources.map { $0.value(forKey: "fileSize") as? Int ?? 0 }.filter { $0 > 0 }
+            // Resource file sizes: PhotoKit does not expose a public fileSize API.
+            // PHAssetResource's fileSize is private KVO; we omit it for API stability.
             let metaWithSizes = AssetMetadataWithSizes(
                 identifier: meta.identifier,
                 creationDate: meta.creationDate,
@@ -33,7 +31,7 @@ enum AssetTools {
                 isFavorite: meta.isFavorite,
                 isHidden: meta.isHidden,
                 location: meta.location,
-                resourceFileSizes: sizes.isEmpty ? nil : sizes
+                resourceFileSizes: nil
             )
 
             let json = try PhotoKitHelpers.encodeToJSON(metaWithSizes)

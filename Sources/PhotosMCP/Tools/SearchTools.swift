@@ -14,7 +14,7 @@ enum SearchTools {
         let isFavorite = Bool(arguments?["is_favorite"] ?? .bool(false), strict: false)
         let keyword = String(arguments?["keyword"] ?? .string(""), strict: false) ?? ""
 
-        var options = PHFetchOptions()
+        let options = PHFetchOptions()
         var predicates: [NSPredicate] = []
 
         if !startDateStr.isEmpty, let start = DateParsing.parse(startDateStr) {
@@ -63,7 +63,7 @@ enum SearchTools {
 
             let total = filtered.count
             let slice = Array(filtered.dropFirst(offset).prefix(limit))
-            let json = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            let json = try PhotoKitHelpers.encodeToJSON(PhotoKitHelpers.SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
             return .init(content: [.text(json)], isError: false)
         }.value
     }
@@ -82,7 +82,7 @@ enum SearchTools {
             var results: [PhotoKitHelpers.AssetMetadata] = []
             allPhotos.enumerateObjects { asset, _, _ in
                 guard let loc = asset.location else { return }
-                let distance = haversineKm(lat1: lat, lon1: lon, lat2: loc.coordinate.latitude, lon2: loc.coordinate.longitude)
+                let distance = GeoUtils.haversineKm(lat1: lat, lon1: lon, lat2: loc.coordinate.latitude, lon2: loc.coordinate.longitude)
                 if distance <= radiusKm {
                     results.append(PhotoKitHelpers.metadata(from: asset))
                 }
@@ -90,7 +90,7 @@ enum SearchTools {
 
             let total = results.count
             let slice = Array(results.dropFirst(offset).prefix(limit))
-            let json = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            let json = try PhotoKitHelpers.encodeToJSON(PhotoKitHelpers.SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
             return .init(content: [.text(json)], isError: false)
         }.value
     }
@@ -108,7 +108,7 @@ enum SearchTools {
         if !dateStr.isEmpty {
             if let d = DateParsing.parse(dateStr) {
                 var cal = Calendar(identifier: .gregorian)
-                cal.timeZone = TimeZone(identifier: "UTC")!
+                cal.timeZone = TimeZone(identifier: "UTC") ?? .current
                 startDate = cal.startOfDay(for: d)
                 if let start = startDate {
                     endDate = cal.date(byAdding: .day, value: 1, to: start)?.addingTimeInterval(-0.001)
@@ -123,7 +123,7 @@ enum SearchTools {
         if let s = startDate { predicates.append(NSPredicate(format: "creationDate >= %@", s as NSDate)) }
         if let e = endDate { predicates.append(NSPredicate(format: "creationDate <= %@", e as NSDate)) }
 
-        var options = PHFetchOptions()
+        let options = PHFetchOptions()
         if !predicates.isEmpty {
             options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         }
@@ -137,7 +137,7 @@ enum SearchTools {
             }
             let total = assets.count
             let slice = Array(assets.dropFirst(offset).prefix(limit))
-            let json = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            let json = try PhotoKitHelpers.encodeToJSON(PhotoKitHelpers.SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
             return .init(content: [.text(json)], isError: false)
         }.value
     }
@@ -175,7 +175,7 @@ enum SearchTools {
             var results: [PhotoKitHelpers.AssetMetadata] = []
             allPhotos.enumerateObjects { asset, _, _ in
                 guard let assetLoc = asset.location else { return }
-                let distance = haversineKm(lat1: lat, lon1: lon, lat2: assetLoc.coordinate.latitude, lon2: assetLoc.coordinate.longitude)
+                let distance = GeoUtils.haversineKm(lat1: lat, lon1: lon, lat2: assetLoc.coordinate.latitude, lon2: assetLoc.coordinate.longitude)
                 if distance <= radiusKm {
                     results.append(PhotoKitHelpers.metadata(from: asset))
                 }
@@ -183,7 +183,7 @@ enum SearchTools {
 
             let total = results.count
             let slice = Array(results.dropFirst(offset).prefix(limit))
-            var response = try PhotoKitHelpers.encodeToJSON(SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            var response = try PhotoKitHelpers.encodeToJSON(PhotoKitHelpers.SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
             response = "Place: \(placeName) (\(lat), \(lon)), radius \(radiusKm) km\n" + response
             return .init(content: [.text(response)], isError: false)
         }.value
@@ -200,20 +200,3 @@ private func filterAssetsByKeyword(assetRefs: [PHAsset], keyword: String) async 
     return matching
 }
 
-private struct SearchResponse: Encodable {
-    let assets: [PhotoKitHelpers.AssetMetadata]
-    let total: Int
-    let limit: Int
-    let offset: Int
-}
-
-private func haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double) -> Double {
-    let R = 6371.0 // Earth radius in km
-    let dLat = (lat2 - lat1) * .pi / 180
-    let dLon = (lon2 - lon1) * .pi / 180
-    let a = sin(dLat/2)*sin(dLat/2) +
-        cos(lat1 * .pi / 180) * cos(lat2 * .pi / 180) *
-        sin(dLon/2)*sin(dLon/2)
-    let c = 2 * atan2(sqrt(a), sqrt(1-a))
-    return R * c
-}
