@@ -49,17 +49,25 @@ enum ContentClassifier {
         options.isNetworkAccessAllowed = true
         options.isSynchronous = false
 
-        let image: ClassifierImage? = await withCheckedContinuation { cont in
+        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             imageManager.requestImage(
                 for: asset,
                 targetSize: CGSize(width: 384, height: 384),
                 contentMode: .aspectFit,
                 options: options
-            ) { img, _ in cont.resume(returning: img) }
-        }
-        guard let image = image else { return false }
+            ) { image, _ in
+                guard let image = image else {
+                    cont.resume(returning: false)
+                    return
+                }
 
-        return await imageMatchesKeyword(image: image, keyword: keyword, confidenceThreshold: confidenceThreshold)
+                cont.resume(returning: imageMatchesKeyword(
+                    image: image,
+                    keyword: keyword,
+                    confidenceThreshold: confidenceThreshold
+                ))
+            }
+        }
     }
 
     /// Classify image and check if it matches the keyword.
@@ -67,7 +75,7 @@ enum ContentClassifier {
         image: ClassifierImage,
         keyword: String,
         confidenceThreshold: Float = defaultConfidenceThreshold
-    ) async -> Bool {
+    ) -> Bool {
         let cgImage: CGImage?
         #if os(macOS)
         let nsImage = image
@@ -79,40 +87,31 @@ enum ContentClassifier {
 
         guard let cgImage = cgImage else { return false }
 
-        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            let request = VNClassifyImageRequest { req, error in
-                var didResume = false
-                let resumeOnce: (Bool) -> Void = { value in
-                    guard !didResume else { return }
-                    didResume = true
-                    cont.resume(returning: value)
-                }
+        var didMatch = false
+        let request = VNClassifyImageRequest { req, error in
+            guard error == nil, let results = req.results as? [VNClassificationObservation] else {
+                return
+            }
 
-                guard error == nil, let results = req.results as? [VNClassificationObservation] else {
-                    resumeOnce(false)
+            let keywordLower = keyword.lowercased().trimmingCharacters(in: .whitespaces)
+            let synonyms = Self.keywordSynonyms[keywordLower] ?? [keywordLower]
+            let allTerms = Set(synonyms + [keywordLower])
+
+            for obs in results where obs.confidence >= confidenceThreshold {
+                let label = obs.identifier.lowercased()
+                if allTerms.contains(where: { label.contains($0) || $0.contains(label) }) {
+                    didMatch = true
                     return
                 }
-
-                let keywordLower = keyword.lowercased().trimmingCharacters(in: .whitespaces)
-                let synonyms = Self.keywordSynonyms[keywordLower] ?? [keywordLower]
-                let allTerms = Set(synonyms + [keywordLower])
-
-                for obs in results where obs.confidence >= confidenceThreshold {
-                    let label = obs.identifier.lowercased()
-                    if allTerms.contains(where: { label.contains($0) || $0.contains(label) }) {
-                        resumeOnce(true)
-                        return
-                    }
-                }
-                resumeOnce(false)
             }
+        }
 
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                cont.resume(returning: false)
-            }
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+            return didMatch
+        } catch {
+            return false
         }
     }
 }
