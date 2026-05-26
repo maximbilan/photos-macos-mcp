@@ -78,6 +78,15 @@ enum ToolDefinitions {
                 annotations: .init(readOnlyHint: true)
             ),
             Tool(
+                name: "get_asset_classifications",
+                description: "Return Vision image classification labels and confidence scores for a photo. Useful when keyword search misses an expected object.",
+                inputSchema: schema(properties: [
+                    "asset_identifier": prop("string", description: "The asset's local identifier"),
+                    "max_results": prop("integer", description: "Maximum classification labels to return (default 10, max 30)")
+                ], required: ["asset_identifier"]),
+                annotations: .init(readOnlyHint: true)
+            ),
+            Tool(
                 name: "get_photo_thumbnail",
                 description: "Small preview (default 512px). For full resolution use get_photo_full. Saves to temp file; tell user `open /path` to view.",
                 inputSchema: schema(properties: [

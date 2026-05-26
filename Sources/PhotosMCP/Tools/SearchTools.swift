@@ -56,14 +56,23 @@ enum SearchTools {
             }
 
             var filtered = assets
+            var keywordInfo: KeywordSearchInfo?
             if !keyword.isEmpty {
-                let matchingIndices = await filterAssetsByKeyword(assetRefs: assetRefs, keyword: keyword)
+                let searchResult = await filterAssetsByKeywordWithFallback(assetRefs: assetRefs, keyword: keyword)
+                let matchingIndices = searchResult.indices
                 filtered = matchingIndices.map { assets[$0] }
+                keywordInfo = searchResult.info
             }
 
             let total = filtered.count
             let slice = Array(filtered.dropFirst(offset).prefix(limit))
-            let json = try PhotoKitHelpers.encodeToJSON(PhotoKitHelpers.SearchResponse(assets: slice, total: total, limit: limit, offset: offset))
+            let json = try PhotoKitHelpers.encodeToJSON(SearchResponseWithKeywordInfo(
+                assets: slice,
+                total: total,
+                limit: limit,
+                offset: offset,
+                keywordInfo: keywordInfo
+            ))
             return .init(content: [.text(json)], isError: false)
         }.value
     }
@@ -190,13 +199,105 @@ enum SearchTools {
     }
 }
 
-private func filterAssetsByKeyword(assetRefs: [PHAsset], keyword: String) async -> [Int] {
+private struct KeywordSearchInfo: Encodable {
+    let requestedKeyword: String
+    let matchedKeyword: String?
+    let usedFallback: Bool
+    let fallbackKeywords: [String]
+    let confidenceThreshold: Float
+    let analyzedAssets: Int
+    let maxAnalyzedAssets: Int
+}
+
+private struct KeywordFilterResult {
+    let indices: [Int]
+    let info: KeywordSearchInfo
+}
+
+private struct SearchResponseWithKeywordInfo: Encodable {
+    let assets: [PhotoKitHelpers.AssetMetadata]
+    let total: Int
+    let limit: Int
+    let offset: Int
+    let keywordInfo: KeywordSearchInfo?
+}
+
+private func filterAssetsByKeywordWithFallback(assetRefs: [PHAsset], keyword: String) async -> KeywordFilterResult {
+    let analyzedAssets = min(assetRefs.count, ContentClassifier.maxAssetsToAnalyze)
+    let primaryThreshold = ContentClassifier.defaultConfidenceThreshold
+    let fallbackThreshold: Float = 0.2
+    let fallbackKeywords = ContentClassifier.fallbackKeywords(for: keyword)
+
+    let primaryMatches = await filterAssetsByKeyword(
+        assetRefs: assetRefs,
+        keyword: keyword,
+        confidenceThreshold: primaryThreshold
+    )
+    if !primaryMatches.isEmpty {
+        return KeywordFilterResult(
+            indices: primaryMatches,
+            info: KeywordSearchInfo(
+                requestedKeyword: keyword,
+                matchedKeyword: keyword,
+                usedFallback: false,
+                fallbackKeywords: fallbackKeywords,
+                confidenceThreshold: primaryThreshold,
+                analyzedAssets: analyzedAssets,
+                maxAnalyzedAssets: ContentClassifier.maxAssetsToAnalyze
+            )
+        )
+    }
+
+    for fallbackKeyword in fallbackKeywords {
+        let fallbackMatches = await filterAssetsByKeyword(
+            assetRefs: assetRefs,
+            keyword: fallbackKeyword,
+            confidenceThreshold: fallbackThreshold
+        )
+        if !fallbackMatches.isEmpty {
+            return KeywordFilterResult(
+                indices: fallbackMatches,
+                info: KeywordSearchInfo(
+                    requestedKeyword: keyword,
+                    matchedKeyword: fallbackKeyword,
+                    usedFallback: true,
+                    fallbackKeywords: fallbackKeywords,
+                    confidenceThreshold: fallbackThreshold,
+                    analyzedAssets: analyzedAssets,
+                    maxAnalyzedAssets: ContentClassifier.maxAssetsToAnalyze
+                )
+            )
+        }
+    }
+
+    return KeywordFilterResult(
+        indices: [],
+        info: KeywordSearchInfo(
+            requestedKeyword: keyword,
+            matchedKeyword: nil,
+            usedFallback: false,
+            fallbackKeywords: fallbackKeywords,
+            confidenceThreshold: primaryThreshold,
+            analyzedAssets: analyzedAssets,
+            maxAnalyzedAssets: ContentClassifier.maxAssetsToAnalyze
+        )
+    )
+}
+
+private func filterAssetsByKeyword(
+    assetRefs: [PHAsset],
+    keyword: String,
+    confidenceThreshold: Float
+) async -> [Int] {
     let maxAnalyze = min(assetRefs.count, ContentClassifier.maxAssetsToAnalyze)
     var matching: [Int] = []
     for i in 0..<maxAnalyze {
-        let matches = await ContentClassifier.assetMatchesKeyword(asset: assetRefs[i], keyword: keyword)
+        let matches = await ContentClassifier.assetMatchesKeyword(
+            asset: assetRefs[i],
+            keyword: keyword,
+            confidenceThreshold: confidenceThreshold
+        )
         if matches { matching.append(i) }
     }
     return matching
 }
-

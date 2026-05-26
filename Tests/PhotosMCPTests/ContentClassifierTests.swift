@@ -29,6 +29,14 @@ struct ContentClassifierTests {
         #expect(!ContentClassifier.usesPersonDetection(for: "pizza"))
     }
 
+    @Test("known object keywords provide broader fallback terms")
+    func knownObjectKeywordsProvideFallbackTerms() {
+        #expect(ContentClassifier.fallbackKeywords(for: "pizza").contains("food"))
+        #expect(ContentClassifier.fallbackKeywords(for: "pizza").contains("dish"))
+        #expect(ContentClassifier.fallbackKeywords(for: "dog").contains("animal"))
+        #expect(ContentClassifier.fallbackKeywords(for: "unknown-object").isEmpty)
+    }
+
     @Test("matching avoids substring false positives")
     func matchingAvoidsSubstringFalsePositives() {
         #expect(!ContentClassifier.classificationLabel("woman", matchesKeyword: "man"))

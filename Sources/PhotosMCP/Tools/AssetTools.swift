@@ -38,6 +38,40 @@ enum AssetTools {
             return .init(content: [.text(json)], isError: false)
         }.value
     }
+
+    static func getAssetClassifications(arguments: [String: Value]?) async throws -> CallTool.Result {
+        guard let assetId = String(arguments?["asset_identifier"] ?? .string(""), strict: false), !assetId.isEmpty else {
+            return .init(content: [.text("Error: asset_identifier is required")], isError: true)
+        }
+        let maxResults = min(max(Int(arguments?["max_results"] ?? 10, strict: false) ?? 10, 1), 30)
+
+        return await Task.detached(priority: .userInitiated) {
+            let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+            guard let asset = fetchResult.firstObject else {
+                return CallTool.Result(content: [.text("Error: Asset not found with identifier \(assetId)")], isError: true)
+            }
+
+            guard asset.mediaType == .image else {
+                return CallTool.Result(content: [.text("Error: Asset is not a photo (media type: \(asset.mediaType.rawValue))")], isError: true)
+            }
+
+            let classifications = await ContentClassifier.classifications(
+                for: asset,
+                maxResults: maxResults
+            )
+            let response = AssetClassificationsResponse(
+                assetIdentifier: assetId,
+                classifications: classifications
+            )
+
+            do {
+                let json = try PhotoKitHelpers.encodeToJSON(response)
+                return CallTool.Result(content: [.text(json)], isError: false)
+            } catch {
+                return CallTool.Result(content: [.text("Error: Failed to encode classifications: \(error.localizedDescription)")], isError: true)
+            }
+        }.value
+    }
 }
 
 private struct AssetMetadataWithSizes: Encodable {
@@ -53,4 +87,9 @@ private struct AssetMetadataWithSizes: Encodable {
     let isHidden: Bool
     let location: PhotoKitHelpers.AssetMetadata.Location?
     let resourceFileSizes: [Int]?
+}
+
+private struct AssetClassificationsResponse: Encodable {
+    let assetIdentifier: String
+    let classifications: [ContentClassifier.Classification]
 }

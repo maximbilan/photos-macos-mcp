@@ -14,6 +14,11 @@ fileprivate typealias ClassifierImage = UIImage
 /// PhotoKit does not expose Apple's ML search API, so we run on-device classification.
 enum ContentClassifier {
 
+    struct Classification: Encodable, Sendable {
+        let label: String
+        let confidence: Float
+    }
+
     /// Minimum confidence (0...1) for a classification match.
     static let defaultConfidenceThreshold: Float = 0.3
 
@@ -87,6 +92,38 @@ enum ContentClassifier {
         }
     }
 
+    static func classifications(
+        for asset: PHAsset,
+        maxResults: Int = 10,
+        imageManager: PHImageManager = .default()
+    ) async -> [Classification] {
+        guard asset.mediaType == .image else { return [] }
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+
+        return await withCheckedContinuation { (cont: CheckedContinuation<[Classification], Never>) in
+            imageManager.requestImage(
+                for: asset,
+                targetSize: CGSize(width: 512, height: 512),
+                contentMode: .aspectFit,
+                options: options
+            ) { image, _ in
+                guard let image = image else {
+                    cont.resume(returning: [])
+                    return
+                }
+
+                cont.resume(returning: classifications(
+                    for: image,
+                    maxResults: maxResults
+                ))
+            }
+        }
+    }
+
     /// Classify image and check if it matches the keyword.
     fileprivate static func imageMatchesKeyword(
         image: ClassifierImage,
@@ -140,8 +177,53 @@ enum ContentClassifier {
         classificationLabel(label, matchesAny: matchingTerms(for: keyword))
     }
 
+    static func fallbackKeywords(for keyword: String) -> [String] {
+        let normalizedKeyword = normalize(keyword)
+        let fallbacksByKeyword: [String: [String]] = [
+            "pizza": ["food", "meal", "dish", "cuisine", "restaurant"],
+            "sandwich": ["food", "meal", "dish"],
+            "salad": ["food", "meal", "dish"],
+            "sushi": ["food", "meal", "dish", "cuisine", "restaurant"],
+            "burger": ["food", "meal", "dish", "restaurant"],
+            "dog": ["animal", "pet"],
+            "cat": ["animal", "pet"],
+            "beach": ["water", "ocean", "sea", "landscape"],
+            "car": ["vehicle", "automobile", "transportation"]
+        ]
+
+        let fallbacks = fallbacksByKeyword[normalizedKeyword] ?? []
+        return fallbacks.filter { $0 != normalizedKeyword }
+    }
+
     static func usesPersonDetection(for keyword: String) -> Bool {
         !matchingTerms(for: keyword).isDisjoint(with: personDetectionTerms)
+    }
+
+    private static func classifications(
+        for image: ClassifierImage,
+        maxResults: Int
+    ) -> [Classification] {
+        let cgImage: CGImage?
+        #if os(macOS)
+        let nsImage = image
+        cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            ?? (nsImage.representations.first as? NSBitmapImageRep)?.cgImage
+        #else
+        cgImage = image.cgImage
+        #endif
+
+        guard let cgImage = cgImage else { return [] }
+
+        let request = VNClassifyImageRequest()
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+            return Array((request.results ?? [])
+                .prefix(max(maxResults, 0))
+                .map { Classification(label: $0.identifier, confidence: $0.confidence) })
+        } catch {
+            return []
+        }
     }
 
     private static func imageHasPerson(_ cgImage: CGImage) -> Bool {

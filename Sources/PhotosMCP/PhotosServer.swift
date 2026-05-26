@@ -57,6 +57,8 @@ actor PhotosServer {
             return try await AlbumTools.getAlbumContents(arguments: params.arguments)
         case "get_asset_details":
             return try await AssetTools.getAssetDetails(arguments: params.arguments)
+        case "get_asset_classifications":
+            return try await AssetTools.getAssetClassifications(arguments: params.arguments)
         case "get_photo_thumbnail":
             return try await ImageTools.getPhotoThumbnail(arguments: params.arguments)
         case "get_photo_full":

@@ -96,6 +96,7 @@ By default, the installer uses server name `photos` and installs the binary to `
 | `search_photos` | Search by date range, media type, favorites, keyword |
 | `get_album_contents` | Assets in an album by identifier |
 | `get_asset_details` | Full metadata for an asset |
+| `get_asset_classifications` | Vision classification labels and confidence scores for a photo |
 | `get_photo_thumbnail` | Base64 JPEG thumbnail |
 | `get_photo_full` | Full-resolution image as base64 JPEG |
 | `get_photos_by_place` | Photos by place name (e.g. Valencia, Paris)—geocodes and searches |
@@ -148,7 +149,8 @@ PhotosMCP/
 ## Notes
 
 - `list_moments` returns an empty list on macOS; the `fetchMoments` API is iOS-only.
-- **Keyword search** in `search_photos` uses Vision ML (pizza, food, car, city, dog, beach, etc.). Analyzes up to 1000 photos—combine with date range for large libraries.
+- **Keyword search** in `search_photos` uses Vision ML (pizza, food, car, city, dog, beach, etc.). Analyzes up to 1000 photos—combine with date range for large libraries. Some keywords fall back to broader terms (for example, pizza can fall back to food/meal/dish) when the exact pass has no matches.
+- **Classification inspection** via `get_asset_classifications` returns the top Vision labels for one photo. Use it to debug why a keyword search did or did not match a photo.
 - **Place search** via `get_photos_by_place`—geocodes "Valencia", "Paris" etc. and finds photos taken there.
 - **Date search** accepts `yyyy-MM-dd` or full ISO 8601. Use `start_date` and `end_date` for ranges.
 
