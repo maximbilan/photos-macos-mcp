@@ -20,6 +20,38 @@ The executable will be at:
 .build/release/PhotosMCP
 ```
 
+## Convenience Scripts
+
+Install from source and register the MCP server with Claude Desktop and Claude Code:
+
+```bash
+./scripts/install.sh
+```
+
+One-click rebuild and reinstall for local development:
+
+```bash
+./scripts/rebuild_reinstall.sh
+```
+
+Remove Claude registrations and the installed binary:
+
+```bash
+./scripts/uninstall.sh
+```
+
+Update Swift package dependencies:
+
+```bash
+./scripts/update_deps.sh
+```
+
+By default, the installer uses server name `photos` and installs the binary to `~/.local/bin/PhotosMCP`. You can override these with:
+
+```bash
+./scripts/install.sh --name photos --install-dir "$HOME/.local/bin" --scope user
+```
+
 ## Claude Desktop App Integration
 
 1. **Build the project** (see above).
