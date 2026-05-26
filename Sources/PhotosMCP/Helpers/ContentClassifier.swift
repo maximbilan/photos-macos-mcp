@@ -22,7 +22,7 @@ enum ContentClassifier {
 
     /// Keyword synonyms for common searches (Vision labels may vary).
     private static let keywordSynonyms: [String: [String]] = [
-        "pizza": ["pizza", "pie", "Italian food", "food", "meal", "dough"],
+        "pizza": ["pizza", "pie", "italian food", "food", "meal", "dish", "dough"],
         "food": ["food", "meal", "dish", "cuisine", "pizza", "sandwich", "salad"],
         "dog": ["dog", "puppy", "canine"],
         "cat": ["cat", "kitten", "feline"],
@@ -32,7 +32,24 @@ enum ContentClassifier {
         "car": ["car", "automobile", "vehicle", "sedan", "sports car", "truck"],
         "city": ["city", "urban", "street", "downtown", "skyscraper", "building", "architecture"],
         "person": ["person", "people", "human", "face", "portrait"],
-        "people": ["person", "people", "human", "face", "group"]
+        "people": ["person", "people", "human", "face", "portrait", "group"],
+        "man": ["man", "men", "male", "person", "people", "human", "face", "portrait", "adult"],
+        "men": ["man", "men", "male", "person", "people", "human", "face", "portrait", "adult"],
+        "woman": ["woman", "women", "female", "person", "people", "human", "face", "portrait", "adult"],
+        "women": ["woman", "women", "female", "person", "people", "human", "face", "portrait", "adult"],
+        "boy": ["boy", "child", "children", "kid", "person", "people", "human", "face", "portrait"],
+        "girl": ["girl", "child", "children", "kid", "person", "people", "human", "face", "portrait"],
+        "child": ["child", "children", "kid", "boy", "girl", "person", "people", "human", "face", "portrait"],
+        "children": ["child", "children", "kid", "boy", "girl", "person", "people", "human", "face", "portrait"],
+        "baby": ["baby", "infant", "toddler", "child", "person", "people", "human", "face", "portrait"],
+        "selfie": ["selfie", "person", "people", "human", "face", "portrait"],
+        "portrait": ["portrait", "person", "people", "human", "face"]
+    ]
+
+    private static let personDetectionTerms: Set<String> = [
+        "person", "people", "human", "face", "portrait", "selfie",
+        "man", "men", "male", "woman", "women", "female",
+        "boy", "girl", "child", "children", "kid", "baby", "infant", "toddler"
     ]
 
     /// Check if an asset's image matches the given keyword using Vision classification.
@@ -87,31 +104,84 @@ enum ContentClassifier {
 
         guard let cgImage = cgImage else { return false }
 
-        var didMatch = false
-        let request = VNClassifyImageRequest { req, error in
-            guard error == nil, let results = req.results as? [VNClassificationObservation] else {
-                return
-            }
-
-            let keywordLower = keyword.lowercased().trimmingCharacters(in: .whitespaces)
-            let synonyms = Self.keywordSynonyms[keywordLower] ?? [keywordLower]
-            let allTerms = Set(synonyms + [keywordLower])
-
-            for obs in results where obs.confidence >= confidenceThreshold {
-                let label = obs.identifier.lowercased()
-                if allTerms.contains(where: { label.contains($0) || $0.contains(label) }) {
-                    didMatch = true
-                    return
-                }
-            }
+        if usesPersonDetection(for: keyword), imageHasPerson(cgImage) {
+            return true
         }
 
+        let request = VNClassifyImageRequest()
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         do {
             try handler.perform([request])
-            return didMatch
+            let allTerms = matchingTerms(for: keyword)
+            let results = request.results ?? []
+
+            for obs in results where obs.confidence >= confidenceThreshold {
+                if classificationLabel(obs.identifier, matchesAny: allTerms) {
+                    return true
+                }
+            }
+            return false
         } catch {
             return false
         }
+    }
+
+    static func matchingTerms(for keyword: String) -> Set<String> {
+        let normalizedKeyword = normalize(keyword)
+        guard !normalizedKeyword.isEmpty else { return [] }
+
+        let synonyms = keywordSynonyms[normalizedKeyword] ?? []
+        return Set((synonyms + [normalizedKeyword])
+            .map(normalize)
+            .filter { !$0.isEmpty })
+    }
+
+    static func classificationLabel(_ label: String, matchesKeyword keyword: String) -> Bool {
+        classificationLabel(label, matchesAny: matchingTerms(for: keyword))
+    }
+
+    static func usesPersonDetection(for keyword: String) -> Bool {
+        !matchingTerms(for: keyword).isDisjoint(with: personDetectionTerms)
+    }
+
+    private static func imageHasPerson(_ cgImage: CGImage) -> Bool {
+        let humanRequest = VNDetectHumanRectanglesRequest()
+        let faceRequest = VNDetectFaceRectanglesRequest()
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+
+        do {
+            try handler.perform([humanRequest, faceRequest])
+            return !(humanRequest.results ?? []).isEmpty || !(faceRequest.results ?? []).isEmpty
+        } catch {
+            return false
+        }
+    }
+
+    private static func classificationLabel(_ label: String, matchesAny terms: Set<String>) -> Bool {
+        let normalizedLabel = normalize(label)
+        guard !normalizedLabel.isEmpty else { return false }
+
+        return terms.contains { term in
+            wholeTerm(term, appearsIn: normalizedLabel)
+        }
+    }
+
+    private static func wholeTerm(_ term: String, appearsIn label: String) -> Bool {
+        let escaped = NSRegularExpression.escapedPattern(for: term)
+        return label.range(
+            of: "(^|[^a-z0-9])\(escaped)($|[^a-z0-9])",
+            options: .regularExpression
+        ) != nil
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(
+                of: #"\s+"#,
+                with: " ",
+                options: .regularExpression
+            )
     }
 }
