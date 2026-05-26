@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-darwin-arm64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build darwin arm64 binary
+        run: |
+          set -euxo pipefail
+          swift build -c release
+          mkdir -p dist
+          cp .build/release/PhotosMCP dist/PhotosMCP-darwin-arm64
+          chmod 0755 dist/PhotosMCP-darwin-arm64
+
+      - name: Upload arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotosMCP-darwin-arm64
+          path: dist/PhotosMCP-darwin-arm64
+
+  build-darwin-amd64:
+    runs-on: macos-15-intel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build darwin amd64 binary
+        run: |
+          set -euxo pipefail
+          swift build -c release
+          mkdir -p dist
+          cp .build/release/PhotosMCP dist/PhotosMCP-darwin-amd64
+          chmod 0755 dist/PhotosMCP-darwin-amd64
+
+      - name: Upload amd64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotosMCP-darwin-amd64
+          path: dist/PhotosMCP-darwin-amd64
+
+  release:
+    runs-on: macos-latest
+    needs:
+      - build-darwin-arm64
+      - build-darwin-amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PhotosMCP-darwin-arm64
+          path: dist
+
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PhotosMCP-darwin-amd64
+          path: dist
+
+      - name: Build universal binary
+        run: |
+          set -euxo pipefail
+          lipo -create -output dist/PhotosMCP-darwin-universal dist/PhotosMCP-darwin-arm64 dist/PhotosMCP-darwin-amd64
+          chmod 0755 dist/PhotosMCP-darwin-universal
+
+      - name: Generate checksums
+        run: |
+          set -euxo pipefail
+          cd dist
+          shasum -a 256 PhotosMCP-darwin-arm64 PhotosMCP-darwin-amd64 PhotosMCP-darwin-universal > SHA256SUMS
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/PhotosMCP-darwin-arm64
+            dist/PhotosMCP-darwin-amd64
+            dist/PhotosMCP-darwin-universal
+            dist/SHA256SUMS
+            scripts/run-photos-mcp.sh
